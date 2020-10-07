@@ -1,11 +1,3 @@
-/*
-  TODO:
-    *  Better organize async tasks
-      *  Break out into different functions
-      * 
-    *  Use logic to better accommodate the 3 paid statuses
-*/
-
 import React, { useEffect, useState } from 'react';
 import MetaMaskOnboarding from '@metamask/onboarding';
 import classNames from 'classnames';
@@ -19,8 +11,8 @@ import './App.css';
 const PAYMENT_ADDRESS = '0x54DF84884b1aFc440c661f3f6DD82C8c0987395C';
 const MEMBERSHIP_PRICE_IN_ETH = '0.00001';
 
-// DELETE ME
-const ETHERSCAN_API_KEY = 'H1A24DVK5FJZCVEQ2TTREBB6RXU9IRMG55';
+// Manually put this in localStorage
+const ETHERSCAN_API_KEY = localStorage.getItem('ETHERSCAN_API_KEY');
 
 const BLOG_POST = {
   title: 'How to Detect When a Sticky Element Gets Pinned',
@@ -95,6 +87,8 @@ const provider = new ethers.providers.Web3Provider(window.ethereum);
 const signer = provider.getSigner();
 
 function connect(setAccounts) {
+  // Not using provider method here because it doesn't 
+  // open metamask when there are no connected accounts :/
   window.ethereum
       .request({ method: 'eth_requestAccounts' })
       .then(result => {
@@ -122,27 +116,27 @@ function onChainChanged() {
 }
 
 async function startPayment(setIsPaid) {
-  console.warn("User has *NOT* paid!  Opening MetaMask to initiate payment...");
-  return signer.sendTransaction({ 
-    to: PAYMENT_ADDRESS, 
-    value: ethers.utils.parseEther(MEMBERSHIP_PRICE_IN_ETH)
-  })
-  // Assumes a valid result; in a production environment, where we want to be completely sure
-  // we got paid, and were willing to wait, we'd poll the ETHERSCAN API to ensure the transaction was complete
-  .then(result => {
-    console.log("Payment completed, assuming all is well");
-    setIsPaid(true);
-  })
-  .catch(e => console.error("Payment error! ", e));
+  console.warn('Opening MetaMask to initiate payment...');
+  const value = ethers.utils.parseEther(MEMBERSHIP_PRICE_IN_ETH);
+  return signer.sendTransaction({ to: PAYMENT_ADDRESS, value })
+        // Assumes a valid result; in a production environment, where we want to be completely sure
+        // we got paid, and were willing to wait, we'd poll the ETHERSCAN API to ensure the transaction was complete
+        .then(result => {
+          console.log("Payment completed, assuming all is well", result);
+          setIsPaid(true);
+        })
+        .catch(e => console.error("Payment error! ", e));
+}
+
+function getSelectedAccount(accounts) {
+  return (window.ethereum.selectedAddress || accounts[0]).toLowerCase();
 }
 
 function App() {
   const [accounts, setAccounts] = useState([]);
-  const [balance, setBalance] = useState(0);
-  // true = paid, false = not yet paid, null = not sure yet
-  const [isPaid, setIsPaid] = useState(null);
+  const [isPaid, setIsPaid] = useState(false);
 
-  const isConnected = !!window.ethereum.selectedAddress;
+  const isConnected = !!accounts?.[0];
   const isMetaMaskInstalled = window?.ethereum?.isConnected;
 
   // Registration for event listeners
@@ -156,22 +150,20 @@ function App() {
         .then(result => result.json())
         .then(json => {
           console.log("Transaction search of etherscan produces: ", json);
+          const selectedAccount = getSelectedAccount(accounts).toLowerCase();
           // Cheating a bit here; sometimes an error triggers a string result from service
           const transactions = Array.isArray(json.result) ? json.result : []
-          const paidTransaction = transactions.find(transaction => transaction.from === accounts[0].toLowerCase());
+          const paidTransaction = transactions.find(transaction => transaction.from === selectedAccount);
           if(paidTransaction) {
             console.log("User has paid!");
             setIsPaid(true);
-          }
-          else {
-            console.warn("User has *NOT* paid!  Opening MetaMask to initiate payment...");
-            setIsPaid(false);
           }
         })
         .catch(e => console.log("Etherscan request error: ", e));
     }
     else {
-      setBalance(0);
+      // We can hide the article if they removce all accounts, I guess...
+      setIsPaid(false);
     }
   }
   useEffect(() => {
@@ -189,26 +181,33 @@ function App() {
 
   // Manage page title
   useEffect(() => {
-    document.title = `${isConnected ? '' : 'Preview: '} ${BLOG_POST.title}`;
+    document.title = `${isPaid ? '' : 'Preview: '} ${BLOG_POST.title}`;
   });
+
+  function getConnectionButtons() {
+    return isMetaMaskInstalled
+          ? <button onClick={() => connect(setAccounts)}>Pay to view entire article</button>
+          : <button onClick={() => onboard()}>Install MetaMask!</button>;
+  }
+
+  function getActionButtons() {
+    if(isPaid) {
+      return null;
+    }
+
+    if(isConnected) {
+      return <button onClick={() => startPayment(setIsPaid)}>Use MetaMask to pay for this article</button>;
+    }
+    else {
+      return getConnectionButtons();
+    }
+  }
 
   return (
     <div className="App">
       <div className={classNames('indicator', { active: isConnected })} />
       <BlogPost isPaid={isPaid} post={BLOG_POST} />
-      { isConnected && <div className="balance">Your balance is: {ethers.utils.formatEther(balance)} ETH</div> }
-      {
-        isPaid 
-          ? null 
-          : (
-            isConnected 
-            ? <button onClick={() => startPayment(setIsPaid)}>Use MetaMask to pay for this article</button> 
-            : (isMetaMaskInstalled
-                    ? <button onClick={() => connect(setAccounts)}>Pay to view entire article</button>
-                    : <button onClick={() => onboard()}>Install MetaMask!</button>
-              )
-          )
-      }
+      {getActionButtons()}
     </div>
   );
 }
