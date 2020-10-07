@@ -1,22 +1,26 @@
 /*
-  TODO - MAJOR
-  ==========================
-    * Show content only if smart contract / paid
-      *  
-
-
-  TODO - MINOR
-  ==========================
-    * Style the blog post properly
+  TODO:
+    *  Better organize async tasks
+      *  Break out into different functions
+      * 
+    *  Use logic to better accommodate the 3 paid statuses
 */
 
 import React, { useEffect, useState } from 'react';
 import MetaMaskOnboarding from '@metamask/onboarding';
-import classNames from "classnames";
+import classNames from 'classnames';
+import { ethers } from 'ethers';
 
 import BlogPost from './BlogPost';
 
 import './App.css';
+
+// Address where payments must be made
+const PAYMENT_ADDRESS = '0x54DF84884b1aFc440c661f3f6DD82C8c0987395C';
+const MEMBERSHIP_PRICE_IN_ETH = '0.00001';
+
+// DELETE ME
+const ETHERSCAN_API_KEY = 'H1A24DVK5FJZCVEQ2TTREBB6RXU9IRMG55';
 
 const BLOG_POST = {
   title: 'How to Detect When a Sticky Element Gets Pinned',
@@ -36,8 +40,7 @@ const BLOG_POST = {
   <pre class="css">
   .myElement {
     position: sticky;
-  }
-  </pre>
+  }</pre>
   <!-- /wp:html -->
   
   <!-- wp:paragraph -->
@@ -54,8 +57,7 @@ const BLOG_POST = {
   
   .is-pinned {
     color: red;
-  }
-  </pre>
+  }</pre>
   <!-- /wp:html -->
   
   <!-- wp:html -->
@@ -66,8 +68,7 @@ const BLOG_POST = {
     { threshold: [1] }
   );
   
-  observer.observe(el);
-  </pre>
+  observer.observe(el);</pre>
   <!-- /wp:html -->
   
   <!-- wp:paragraph -->
@@ -87,6 +88,11 @@ const BLOG_POST = {
   <p>While there's not too much JavaScript involved, I hope we eventually get a CSS pseudo-class for this.  Something like <code>:sticky</code>, <code>:stuck</code>, or <code>:pinned</code> seems as reasonable as <code>:hover</code> and <code>:focus</code> do.</p>
   <!-- /wp:paragraph -->`
 };
+
+// A Web3Provider wraps a standard Web3 provider, which is
+// what Metamask injects as window.ethereum into each page
+const provider = new ethers.providers.Web3Provider(window.ethereum);
+const signer = provider.getSigner();
 
 function connect(setAccounts) {
   window.ethereum
@@ -108,24 +114,65 @@ function connect(setAccounts) {
 }
 
 function onboard() {
-  const onboarding = new MetaMaskOnboarding();
-  onboarding.startOnboarding();
+  new MetaMaskOnboarding().startOnboarding();
 }
 
 function onChainChanged() {
   window.location.reload();
 }
 
+async function startPayment(setIsPaid) {
+  console.warn("User has *NOT* paid!  Opening MetaMask to initiate payment...");
+  return signer.sendTransaction({ 
+    to: PAYMENT_ADDRESS, 
+    value: ethers.utils.parseEther(MEMBERSHIP_PRICE_IN_ETH)
+  })
+  // Assumes a valid result; in a production environment, where we want to be completely sure
+  // we got paid, and were willing to wait, we'd poll the ETHERSCAN API to ensure the transaction was complete
+  .then(result => {
+    console.log("Payment completed, assuming all is well");
+    setIsPaid(true);
+  })
+  .catch(e => console.error("Payment error! ", e));
+}
+
 function App() {
   const [accounts, setAccounts] = useState([]);
+  const [balance, setBalance] = useState(0);
+  // true = paid, false = not yet paid, null = not sure yet
+  const [isPaid, setIsPaid] = useState(null);
 
-  const isConnected = accounts?.[0];
+  const isConnected = !!window.ethereum.selectedAddress;
   const isMetaMaskInstalled = window?.ethereum?.isConnected;
 
   // Registration for event listeners
   function onAccountsChanged(accounts) {
     console.log('onAccountsChanged: ', accounts);
     setAccounts(accounts);
+
+    if(accounts.length) {
+      // Check to see if they've paid
+      fetch(`http://ropsten.etherscan.io/api?module=account&action=txlist&address=${PAYMENT_ADDRESS}&startblock=0&endblock=9999999999999999&sort=asc&apikey=${ETHERSCAN_API_KEY}`)
+        .then(result => result.json())
+        .then(json => {
+          console.log("Transaction search of etherscan produces: ", json);
+          // Cheating a bit here; sometimes an error triggers a string result from service
+          const transactions = Array.isArray(json.result) ? json.result : []
+          const paidTransaction = transactions.find(transaction => transaction.from === accounts[0].toLowerCase());
+          if(paidTransaction) {
+            console.log("User has paid!");
+            setIsPaid(true);
+          }
+          else {
+            console.warn("User has *NOT* paid!  Opening MetaMask to initiate payment...");
+            setIsPaid(false);
+          }
+        })
+        .catch(e => console.log("Etherscan request error: ", e));
+    }
+    else {
+      setBalance(0);
+    }
   }
   useEffect(() => {
     if (!isMetaMaskInstalled) {
@@ -148,13 +195,19 @@ function App() {
   return (
     <div className="App">
       <div className={classNames('indicator', { active: isConnected })} />
-      <BlogPost isConnected={isConnected} post={BLOG_POST} />
+      <BlogPost isPaid={isPaid} post={BLOG_POST} />
+      { isConnected && <div className="balance">Your balance is: {ethers.utils.formatEther(balance)} ETH</div> }
       {
-        isConnected ? null : (
-          isMetaMaskInstalled
-            ? <button onClick={() => connect(setAccounts)}>Connect to MetaMask to view the entire article!</button> 
-            : <button onClick={() => onboard()}>Install MetaMask!</button>
-        )
+        isPaid 
+          ? null 
+          : (
+            isConnected 
+            ? <button onClick={() => startPayment(setIsPaid)}>Use MetaMask to pay for this article</button> 
+            : (isMetaMaskInstalled
+                    ? <button onClick={() => connect(setAccounts)}>Pay to view entire article</button>
+                    : <button onClick={() => onboard()}>Install MetaMask!</button>
+              )
+          )
       }
     </div>
   );

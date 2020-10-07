@@ -17,3 +17,10 @@ body {
   background: lightgreen;
   border: 1px solid green;
 }
+
+.balance {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+  font-weight: bold;
+}

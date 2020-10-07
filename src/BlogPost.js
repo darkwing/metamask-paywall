@@ -1,10 +1,12 @@
 import React from 'react';
 
+import './BlogPost.css';
+
 function BlogPost(props) {
-    const { isConnected, post } = props;
+    const { isPaid, post } = props;
     const { title, preview, full_post } = post;
 
-    const content = isConnected ? full_post : preview;
+    const content = isPaid ? full_post : preview;
   
     return (
       <article>
