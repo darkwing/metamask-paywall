@@ -149,17 +149,17 @@ function App() {
       fetch(`http://ropsten.etherscan.io/api?module=account&action=txlist&address=${PAYMENT_ADDRESS}&startblock=0&endblock=9999999999999999&sort=asc&apikey=${ETHERSCAN_API_KEY}`)
         .then(result => result.json())
         .then(json => {
-          console.log("Transaction search of etherscan produces: ", json);
+          console.log('Transaction search of etherscan produces: ', json);
           const selectedAccount = getSelectedAccount(accounts).toLowerCase();
           // Cheating a bit here; sometimes an error triggers a string result from service
           const transactions = Array.isArray(json.result) ? json.result : []
           const paidTransaction = transactions.find(transaction => transaction.from === selectedAccount);
           if(paidTransaction) {
-            console.log("User has paid!");
+            console.log('User has paid!');
             setIsPaid(true);
           }
         })
-        .catch(e => console.log("Etherscan request error: ", e));
+        .catch(e => console.log('Etherscan request error: ', e));
     }
     else {
       // We can hide the article if they removce all accounts, I guess...
@@ -186,7 +186,7 @@ function App() {
 
   function getConnectionButtons() {
     return isMetaMaskInstalled
-          ? <button onClick={() => connect(setAccounts)}>Pay to view entire article</button>
+          ? <button onClick={() => connect(setAccounts)}>Connect MetaMask to pay to view entire article</button>
           : <button onClick={() => onboard()}>Install MetaMask!</button>;
   }
 
