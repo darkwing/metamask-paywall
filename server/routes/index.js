@@ -6,6 +6,8 @@ const PAYMENT_ADDRESS = '0x54DF84884b1aFc440c661f3f6DD82C8c0987395C';
 
 const { ethers } = require('ethers');
 const axios = require('axios');
+const sigUtil = require('eth-sig-util');
+const ethUtil = require('ethereumjs-util');
 
 const POST_ID = 1182;
 const TITLE = 'How to Detect When a Sticky Element Gets Pinned';
@@ -86,7 +88,9 @@ function getPostJson(sendFull = false) {
   };
 }
 
-
+const agreementText = ethUtil.bufferToHex(
+  new Buffer(`I hereby agree that I will not share this article with anyone under penalty of being added to the wall of shame.`, 'utf8')
+);
 
 /* GET home page. */
 router.get('/', async function(req, res, next) {
@@ -99,9 +103,14 @@ router.get('/', async function(req, res, next) {
   console.log('Signature and address present, going to check axios for payment');
 
   // TODO: Verify the signature received
-
-
-
+  const recovered = sigUtil.recoverPersonalSignature({
+    data: agreementText,
+    sig: req.query.signature
+  });
+  console.log('The result of sigUtil.recoverPersonalSignature is: ', recovered);
+  if (recovered !== req.query.address) {
+    return res.json({ error: 'The signature is incorrect' });
+  }
 
   const url = `http://ropsten.etherscan.io/api?module=account&action=txlist&address=${PAYMENT_ADDRESS}&startblock=0&endblock=9999999999999999&sort=asc&apikey=${ETHERSCAN_API_KEY}`;
   const axiosResponse = await axios.get(url); 

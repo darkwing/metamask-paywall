@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import MetaMaskOnboarding from '@metamask/onboarding';
 import classNames from 'classnames';
 import { ethers } from 'ethers';
-
 import Article from './Article';
 
 import './Blog.css';
+
+// Why wont this let me import :(
+const ethUtil = require('ethereumjs-util');
 
 // Address where payments must be made and the price
 // Payment address is also kept on the server side to verify payment
@@ -66,8 +68,11 @@ function Blog(props) {
     console.info('startPayment() called to begin signing and payment...');
 
     // Get a valid signature for this address and message
-    const agreementText = `I hereby agree that I will not share this article with anyone under penalty of being added to the wall of shame.`;
+    const agreementText = ethUtil.bufferToHex(
+      new Buffer(`I hereby agree that I will not share this article with anyone under penalty of being added to the wall of shame.`, 'utf8')
+    );
     const signature = await provider.send('personal_sign', [agreementText, selectedAddress]);
+    console.info("Signature is: ", signature);
 
     // Hit our server to get a payment hash
     console.log('Hitting server to get payment hash!');
@@ -81,8 +86,8 @@ function Blog(props) {
         signature
       })
     });
-    const json = await hashResponse.json();
-    console.log('Hash response is: ', json);
+    const hashJson = await hashResponse.json();
+    console.log('Hash response is: ', hashJson);
 
     // Check to see if the user has paid for this article,
     // providing the hash, selectedAddress, and signature
@@ -95,7 +100,7 @@ function Blog(props) {
     }
     
     const value = ethers.utils.parseEther(MEMBERSHIP_PRICE_IN_ETH);
-    const transaction = await signer.sendTransaction({ to: PAYMENT_ADDRESS, data: json.hash, value });
+    const transaction = await signer.sendTransaction({ to: PAYMENT_ADDRESS, data: hashJson.hash, value });
     transaction.wait().then(async waitResult => {
       console.log('The result from waiting for the transaction is: ', waitResult);
 
@@ -166,7 +171,7 @@ function Blog(props) {
   }
 
   return (
-    <div className="App">
+    <div className="blog">
       <div className={classNames('indicator', { active: isConnected })} />
       { paymentProcessing && <div className="processing">We're currently processing your payment, one moment please.</div> }
       <Article isPaid={isPaid} post={post} />
