@@ -35,19 +35,17 @@ function Blog(props) {
   // Payment will be changed as the user completes the payment process
   const [isPaid, setIsPaid] = useState(false);
   // Post could get updated at the end of payment process, containing full post
-  const [post, setPost] = useState(null);
+  // We can start by assigning this value as the prop the app originally passed in
+  // by the parent App
+  const [post, setPost] = useState(props.post);
   // Is there currently a payment in process that the user should wait for?
   const [paymentProcessing, setPaymentProcessing] = useState(false);
-
-  // Set the initial post data (preview)
-  if(!post) {
-    setPost(props.post);
-  }
 
   // Required to know which buttons we should show the user
   const isConnected = !!selectedAddress;
   const isMetaMaskInstalled = window?.ethereum?.isConnected;
 
+  // Connects MetaMask and sets an initial selectedAddress
   async function connect() {
     // Not using provider method here because it doesn't 
     // open metamask when there are no connected accounts :/
@@ -58,6 +56,8 @@ function Blog(props) {
     setSelectedAddress(selectedAddress);
   }
 
+  // Queries server for payment and returns a post object
+  // with the full_post conditionally populated based on payment
   async function getUpdatedPostBasedOnPayment(address, signature) {
     const paymentCheckResponse = await fetch(`http://localhost:3001/?address=${address}&signature=${signature}`);
     const post = await paymentCheckResponse.json();
@@ -78,13 +78,8 @@ function Blog(props) {
     console.log('Hitting server to get payment hash!');
     const hashResponse = await fetch('http://localhost:3001/', {
       method: 'POST',
-      headers: {
-          'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        address: selectedAddress,
-        signature
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: selectedAddress, signature })
     });
     const hashJson = await hashResponse.json();
     console.log('Hash response is: ', hashJson);
@@ -92,13 +87,16 @@ function Blog(props) {
     // Check to see if the user has paid for this article,
     // providing the hash, selectedAddress, and signature
     const post = await getUpdatedPostBasedOnPayment(selectedAddress, signature);
+
     // If we've received the full post, the server is telling us they've paid! Yay!
     if(post.full_post) {
+      console.log('User has paid for post!  Bypassing payment and showing full post!');
       setPost(post);
       setIsPaid(true);
       return;
     }
     
+    // Initiate the payment transaction
     const value = ethers.utils.parseEther(MEMBERSHIP_PRICE_IN_ETH);
     const transaction = await signer.sendTransaction({ to: PAYMENT_ADDRESS, data: hashJson.hash, value });
     transaction.wait().then(async waitResult => {
@@ -130,8 +128,7 @@ function Blog(props) {
     console.log('onAccountsChanged: ', accounts);
     setSelectedAddress(window.ethereum.selectedAddress || accounts[0] || null);
     
-    // NOTE: This is naive, because the next account *may have* paid,
-    // but we want them to sign again for this
+    // We want the user to sign between accounts, even if this new account has paid
     setIsPaid(false);
   }
   

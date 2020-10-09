@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const ETHERSCAN_API_KEY = 'H1A24DVK5FJZCVEQ2TTREBB6RXU9IRMG55';
+const { ETHERSCAN_API_KEY } = process.env;
 const PAYMENT_ADDRESS = '0x54DF84884b1aFc440c661f3f6DD82C8c0987395C';
 
 const { ethers } = require('ethers');

@@ -9,7 +9,7 @@ function App() {
 
   // If we haven't loaded the blog post yet, do so while showing a loading message
   // The case for this is ensuring the user sees a preview that they would want,
-  // without even needing to have MetaMaks first
+  // without even needing to have MetaMask first
   if(!post) {
     fetch('http://localhost:3001/')
       .then(res => res.json())
