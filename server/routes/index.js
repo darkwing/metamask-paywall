@@ -86,37 +86,53 @@ function getPostJson(sendFull = false) {
   };
 }
 
+
+
 /* GET home page. */
 router.get('/', async function(req, res, next) {
-  if(req.params.address) {
-    const url = `http://ropsten.etherscan.io/api?module=account&action=txlist&address=${PAYMENT_ADDRESS}&startblock=0&endblock=9999999999999999&sort=asc&apikey=${ETHERSCAN_API_KEY}`;
-    axios.get(url).then(axiosResponse => {
-      if(axiosResponse.data && axiosResponse.data.result) {
-        const paidTransaction = axiosResponse.data.result.find(tx =>
-          tx.from === req.params.address && tx.input === getHashForPost(POST_ID, req.params.address)
-        );
-        // We've found a transaction with matching payer address and hash
-        // They've paid!  Give them this post!
-        if(paidTransaction) {
-          return res.json(getPostJson(true));
-        }
-        else {
-          // Hasn't paid yet!
-          return res.json(getPostJson());
-        }
-      }
-      else {
-        // No transaciton data found, couldn't have paid
-        return res.json(getPostJson());
-      }
-    }).cach(e => {
-      console.log('Axios get error! ', e);
-      return res.json({ error: 'Axios fetch error!' });
-    });
-  }
-  else {
+  // If no address and signature are present, simply pass back the post preview
+  if(!req.query.address && !req.query.signature) {
+    console.log('No address and signature, passing back post preview only');
     return res.json(getPostJson());
   }
+
+  console.log('Signature and address present, going to check axios for payment');
+
+  // TODO: Verify the signature received
+
+
+
+
+  const url = `http://ropsten.etherscan.io/api?module=account&action=txlist&address=${PAYMENT_ADDRESS}&startblock=0&endblock=9999999999999999&sort=asc&apikey=${ETHERSCAN_API_KEY}`;
+  const axiosResponse = await axios.get(url); 
+  console.log('axiosResponse is: ', axiosResponse);
+
+  if(axiosResponse.data && axiosResponse.data.result) {
+    console.log('We have axios data and result, filtering now')
+
+    console.log("Required params here, let's do it!")
+    const paidTransaction = axiosResponse.data.result.find(({ from, input }) =>
+      from === req.query.address && input === getHashForPost(POST_ID, req.query.address)
+    );
+
+    console.log('Paid transaction is: ', paidTransaction);
+
+    // We've found a transaction with matching payer address and hash
+    // They've paid!  Give them this post!
+    if(paidTransaction) {
+      console.log("Sending post from found transaction!")
+      return res.json(getPostJson(true));
+    }
+    else {
+      // Hasn't paid yet!
+      console.log("Sending post from axios else!")
+      return res.json(getPostJson());
+    }
+  }
+
+  // No response data found, just provide the preview
+  console.log("Unwanted response data found, simply passing back preview again");
+  return res.json(getPostJson());
 });
 
 /* Used when we receive an address */

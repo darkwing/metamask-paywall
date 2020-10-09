@@ -3,6 +3,10 @@ body {
   padding: 40px;
 }
 
+.app {
+  max-width: 800px;
+}
+
 .indicator {
   width: 40px;
   height: 40px;

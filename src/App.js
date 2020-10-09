@@ -16,7 +16,7 @@ function App() {
       return <div>Loading...</div>;
   }
   
-  return <Blog post={post} />;
+  return <div className="app"><Blog post={post} /></div>;
 }
 
 export default App;
