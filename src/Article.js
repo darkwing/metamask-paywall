@@ -10,7 +10,7 @@ function Article(props) {
     return (
       <article>
         <h1>{title}</h1>
-        <div dangerouslySetInnerHTML={{ __html: content || `Oops, we have confirmed your payment but don't have the full contents!` }} />
+        <div dangerouslySetInnerHTML={{ __html: content }} />
       </article>
     )
   }

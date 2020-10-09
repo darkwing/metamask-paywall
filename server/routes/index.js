@@ -100,7 +100,7 @@ router.get('/', async function(req, res, next) {
     return res.json(getPostJson());
   }
 
-  console.log('Signature and address present, going to check axios for payment');
+  console.log('Signature and address present, going to use axios to check for payment on Etherscan');
 
   // TODO: Verify the signature received
   const recovered = sigUtil.recoverPersonalSignature({
@@ -109,17 +109,15 @@ router.get('/', async function(req, res, next) {
   });
   console.log('The result of sigUtil.recoverPersonalSignature is: ', recovered);
   if (recovered !== req.query.address) {
-    return res.json({ error: 'The signature is incorrect' });
+    return res.json({ ...getPostJson(), error: 'The signature is incorrect' });
   }
 
   const url = `http://ropsten.etherscan.io/api?module=account&action=txlist&address=${PAYMENT_ADDRESS}&startblock=0&endblock=9999999999999999&sort=asc&apikey=${ETHERSCAN_API_KEY}`;
   const axiosResponse = await axios.get(url); 
-  console.log('axiosResponse is: ', axiosResponse);
+  console.log('Etherscan response is: ', axiosResponse);
 
   if(axiosResponse.data && axiosResponse.data.result) {
-    console.log('We have axios data and result, filtering now')
-
-    console.log("Required params here, let's do it!")
+    console.log('We have axios data and result, looking for purchase of this specific post');
     const paidTransaction = axiosResponse.data.result.find(({ from, input }) =>
       from === req.query.address && input === getHashForPost(POST_ID, req.query.address)
     );
@@ -140,11 +138,12 @@ router.get('/', async function(req, res, next) {
   }
 
   // No response data found, just provide the preview
-  console.log("Unwanted response data found, simply passing back preview again");
+  console.log("Incomplete request data found, simply passing back preview again");
   return res.json(getPostJson());
 });
 
-/* Used when we receive an address */
+// When we receive an address to this POST, send back the payment hash
+// We'll check that the transaction's payment hash matches this
 router.post('/', function(req, res, next) {
   console.log('Request parameters: ', req.body);
 

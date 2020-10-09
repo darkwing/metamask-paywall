@@ -6,7 +6,7 @@ import Article from './Article';
 
 import './Blog.css';
 
-// Why wont this let me import :(
+// Can't import :(
 const ethUtil = require('ethereumjs-util');
 
 // Address where payments must be made and the price
@@ -37,7 +37,7 @@ function Blog(props) {
   // Post could get updated at the end of payment process, containing full post
   // We can start by assigning this value as the prop the app originally passed in
   // by the parent App
-  const [post, setPost] = useState(props.post);
+  const [post, setPost] = useState(null);
   // Is there currently a payment in process that the user should wait for?
   const [paymentProcessing, setPaymentProcessing] = useState(false);
 
@@ -64,6 +64,12 @@ function Blog(props) {
     return post;
   }
 
+  // Kicks fof the payment process which:
+  // 1. Generates a signature and requests the user signs in MetaMask
+  // 2. Pings the server to get a hash which will be set as the transaction data
+  // 3. Directs the server to see if the user has already paid; if so, returns full blog post
+  // 4. If hasn't paid, triggers pay workflow to create and submit transaction to network
+  // 5. After transaction is complete, ensures network has transaction and then shows full blog post
   async function startPayment() {
     console.info('startPayment() called to begin signing and payment...');
 
@@ -103,11 +109,12 @@ function Blog(props) {
       console.log('The result from waiting for the transaction is: ', waitResult);
 
       // NOTE: I loathe doing this but let's give a moment for Etherscan to see this new transaction
-      // Otherwise, despite this wait, Etherscan apparently isn't finding the transaction
+      // Otherwise, despite this wait, Etherscan apparently isn't finding the transaction fast enough
       setTimeout(async () => {
         // Check to see if the user has paid for this article,
         // providing the hash, selectedAddress, and signature
         console.log('Arbitrary timeout has expired!  Asking server for result: ', selectedAddress, signature);
+        
         const post = await getUpdatedPostBasedOnPayment(selectedAddress, signature);
         console.log('Post received from server after payment is: ', post);
 
@@ -134,7 +141,7 @@ function Blog(props) {
   
   // Manages events for account and chain changes
   useEffect(() => {
-    if (!isMetaMaskInstalled) {
+    if (!post || !isMetaMaskInstalled) {
       return;
     }
 
@@ -148,8 +155,22 @@ function Blog(props) {
 
   // Manage page title
   useEffect(() => {
+    if(!post) {
+      return;
+    }
     document.title = `${isPaid ? '' : 'Preview: '} ${post.title}`;
   });
+
+  // If we haven't loaded the blog post yet, do so while showing a loading message
+  // The case for this is ensuring the user sees a preview that they would want,
+  // without needing to have MetaMask first.  Helps with SEO too :)
+  if(!post) {
+    fetch('http://localhost:3001/')
+      .then(res => res.json())
+      .then(post => setPost(post))
+      .catch(e => console.error('loadPost error! ', e));
+      return <div>Loading...</div>;
+  }
 
   // UI function: returns busttons to install or connect MetaMask
   function getConnectionButtons() {
